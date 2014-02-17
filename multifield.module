@@ -92,6 +92,7 @@ function multifield_entity_info() {
   $info['multifield'] = array(
     'label' => t('Multifield'),
     'base table' => 'multifield',
+    'revision table' => 'multifield',
     'fieldable' => TRUE,
     // Mark this as a configuratoin entity type to prevent other modules from
     // assuming they can do stuff with this entity type.
@@ -102,6 +103,7 @@ function multifield_entity_info() {
     'entity keys' => array(
       'id' => 'id',
       'bundle' => 'type',
+      'revision' => 'revision_id',
     ),
   );
 
@@ -522,4 +524,100 @@ function multifield_admin_menu_map() {
   );
 
   return $map;
+}
+
+function _multifield_subfield_views_data($field) {
+  $data = array();
+  foreach (multifield_type_get_subfields($field['type']) as $subfield_name) {
+    $subfield = field_info_field($subfield_name);
+    //$subfield['field_name'] = $field['field_name'];
+    //unset($subfield['bundles']['node']);
+    //$details = (array) module_invoke($subfield['storage']['module'], 'field_storage_details', $subfield);
+    //$subfield['storage']['details'] = $details;
+    //dpm($subfield);
+    if ($subfield['storage']['type'] != 'field_sql_storage') {
+      continue;
+    }
+
+    $result = (array) module_invoke($subfield['module'], 'field_views_data', $subfield);
+
+    if (empty($result)) {
+      $result = field_views_field_default_views_data($subfield);
+    }
+    drupal_alter('field_views_data', $result, $subfield, $subfield['module']);
+    $data[$subfield_name] = $result;
+  }
+
+  return $data;
+}
+
+/**
+ * Implements hook_field_views_data().
+ */
+function multifield_field_views_data($field) {
+  $data = field_views_field_default_views_data($field);
+
+  $results = _multifield_subfield_views_data($field);
+  foreach ($results as $subfield_name => $subfield_data) {
+  }
+  //dpm($results);
+
+  if ($field['type'] == 'test') {
+    $data['field_data_field_multifield_test']['field_multifield_test_field_text'] = array(
+      'group' => 'Multifield',
+      'title' => 'Text',
+      'title short' => 'Text',
+      'help' => 'Appears in: node:article',
+      'field' => array(
+        'table' => 'field_data_multifield_test',
+        'handler' => 'MultifieldViewsHandler',
+        'click sortable' => TRUE,
+        'field_name' => 'field_multifield_test',
+        'subfield_name' => 'field_text',
+        'real field' => 'field_multifield_test_field_text_value',
+        'additional fields' => array(
+          'delta',
+          'language',
+          'bundle',
+          'field_multifield_test_field_text_value',
+          'field_multifield_test_field_text_format',
+        ),
+        'entity_tables' => array(
+          'node' => 'node',
+          'node_revision' => 'node',
+        ),
+        'element type' => 'div',
+        'is revision' => FALSE,
+      ),
+    );
+    $data['field_revision_field_multifield_test']['field_multifield_test_field_text'] = array(
+      'group' => 'Multifield (historical data)',
+      'title' => 'Text',
+      'title short' => 'Text',
+      'help' => 'Appears in: node:article',
+      'field' => array(
+        'table' => 'field_revision_multifield_test',
+        'handler' => 'MultifieldViewsHandler',
+        'click sortable' => TRUE,
+        'field_name' => 'field_multifield_test',
+        'subfield_name' => 'field_text',
+        'real field' => 'field_multifield_test-revision_id_field_text_value',
+        'additional fields' => array(
+          'delta',
+          'language',
+          'bundle',
+          'field_multifield_test_field_text_value',
+          'field_multifield_test_field_text_format',
+        ),
+        'entity_tables' => array(
+          'node' => 'node',
+          'node_revision' => 'node',
+        ),
+        'element type' => 'div',
+        'is revision' => TRUE,
+      ),
+    );
+  }
+
+  return $data;
 }
